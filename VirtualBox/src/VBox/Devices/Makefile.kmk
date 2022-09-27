@@ -1,0 +1,1053 @@
+# $Id: Makefile.kmk $
+## @file
+# Top-level sub-makefile for the devices, drivers and services.
+#
+
+#
+# Copyright (C) 2006-2017 Oracle Corporation
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+
+SUB_DEPTH = ../../..
+include $(KBUILD_PATH)/subheader.kmk
+
+# Make sure our Config.kmk is included.
+ifndef VBOX_DEVICES_CONFIG_KMK_INCLUDED
+ include $(PATH_SUB_CURRENT)/Config.kmk
+endif
+
+if defined(VBOX_WITH_INTEL_PXE) || defined(VBOX_ONLY_EXTPACKS)
+ include $(PATH_SUB_CURRENT)/PC/PXE/Makefile.kmk
+else if defined(VBOX_WITH_PXE_ROM)
+ if !defined(VBOX_WITHOUT_IPXE)
+  include $(PATH_SUB_CURRENT)/PC/ipxe/Makefile.kmk
+ endif
+endif
+if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
+ include $(PATH_SUB_CURRENT)/BiosCommonCode/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/PC/BIOS/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/Graphics/BIOS/Makefile.kmk
+
+ #
+ # Main targets.
+ #
+ LIBRARIES += ServicesR0
+ DLLS      += BreadvmDDU BreadvmDD BreadvmDD2
+ SYSMODS   += BreadvmDDR0
+ ifdef VBOX_WITH_RAW_MODE
+  SYSMODS   += BreadvmDDRC
+ endif
+
+
+ #
+ # VBoxDDU (shared object)
+ #
+ BreadvmDDU_TEMPLATE         = VBoxR3DllWarnNoPic
+ BreadvmDDU_NAME             = $(basename $(notdir $(LIB_DDU)))
+ BreadvmDDU_INST.darwin      = $(INST_DLL) $(INST_TESTCASE)
+ BreadvmDDU_DEFS             = IN_VBOXDDU
+ ifdef VBOX_WITH_VUSB
+  BreadvmDDU_DEFS           += VBOX_WITH_VUSB
+ endif
+ ifdef VBOX_WITH_USB
+  BreadvmDDU_DEFS           += VBOX_WITH_USB IN_USBLIB
+  BreadvmDDU_SDKS.win        = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
+  if defined(VBOX_WITH_EHCI_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+   BreadvmDDU_DEFS          += VBOX_WITH_EHCI_IMPL
+  endif
+  if defined(VBOX_WITH_XHCI_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+   BreadvmDDU_DEFS          += VBOX_WITH_XHCI_IMPL
+  endif
+ else
+  BreadvmDDU_SDKS.win        = ReorderCompilerIncs $(VBOX_WINPSDK)
+ endif
+ BreadvmDDU_SOURCES          = \
+ 	Storage/VSCSI/VSCSIDevice.cpp \
+ 	Storage/VSCSI/VSCSILun.cpp \
+ 	Storage/VSCSI/VSCSILunSbc.cpp \
+ 	Storage/VSCSI/VSCSILunMmc.cpp \
+ 	Storage/VSCSI/VSCSISense.cpp \
+ 	Storage/VSCSI/VSCSIIoReq.cpp \
+ 	Storage/VSCSI/VSCSIVpdPagePool.cpp \
+ 	build/VBoxDDUDeps.cpp
+
+ ifdef VBOX_WITH_VSCSI_SSC
+  BreadvmDDU_SOURCES        += Storage/VSCSI/VSCSILunSsc.cpp
+  BreadvmDDU_DEFS		 += VBOX_WITH_VSCSI_SSC
+ endif
+ BreadvmDDU_LIBS             = \
+ 	$(LIB_RUNTIME) \
+ 	$(PATH_STAGE_LIB)/StorageLib$(VBOX_SUFF_LIB)
+ ifdef VBOX_WITH_USB
+  BreadvmDDU_LIBS           += \
+ 	$(PATH_STAGE_LIB)/USBLib$(VBOX_SUFF_LIB)
+  BreadvmDDU_LIBS.win       += \
+ 	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
+ 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib
+ endif
+
+ $(call VBOX_SET_VER_INFO_DLL,BreadvmDDU,BreadvmBox VMM Devices and Drivers Utilities)
+
+ #
+ # BreadvmDD (shared object)
+ #
+ BreadvmDD_TEMPLATE         = VBoxR3DllWarnNoPic
+ BreadvmDD_SDKS.win         = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
+ Storage/DrvHostDVD.cpp_SDKS.win = ReorderCompilerIncs $(VBOX_WINDDK)
+ BreadvmDD_INCS             = \
+ 	build \
+ 	Network/slirp \
+ 	$(VBOX_GRAPHICS_INCS)
+ BreadvmDD_DEFS             = \
+ 	VBOX_ACPI \
+ 	VBOX_HGCM_HOST_CODE \
+ 	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
+ 	$(if $(VBOX_BIOS_DMI_FALLBACK),VBOX_BIOS_DMI_FALLBACK,) \
+ 	VBOX_WITH_DMI_CHASSIS \
+ 	VBOX_WITH_DMI_OEMSTRINGS
+ BreadvmDD_DEFS.win         = _WIN32_WINNT=0x0510
+ BreadvmDD_SOURCES          = \
+ 	build/VBoxDD.cpp \
+ 	Input/DevPS2.cpp \
+ 	Input/PS2K.cpp \
+ 	Input/PS2M.cpp \
+ 	Input/UsbKbd.cpp \
+ 	Input/UsbMouse.cpp \
+ 	Bus/DevPCI.cpp \
+ 	Bus/DevPciIch9.cpp \
+ 	Bus/MsiCommon.cpp \
+ 	Bus/MsixCommon.cpp \
+	EFI/DevSmc.cpp \
+	EFI/DevFlash.cpp \
+ 	Graphics/DevVGA.cpp \
+ 	Storage/DevATA.cpp \
+ 	PC/DevPit-i8254.cpp \
+ 	PC/DevPIC.cpp \
+ 	PC/DevACPI.cpp \
+ 	PC/ACPI/VBoxAcpi.cpp \
+ 	PC/DevRTC.cpp \
+ 	PC/DevPcBios.cpp \
+ 	PC/DevFwCommon.cpp \
+ 	PC/DevPcArch.cpp \
+	GIMDev/GIMDev.cpp \
+	GIMDev/DrvUDP.cpp \
+ 	VMMDev/VMMDev.cpp \
+ 	$(if $(VBOX_WITH_HGCM),VMMDev/VMMDevHGCM.cpp,) \
+ 	VMMDev/VMMDevTesting.cpp \
+ 	Network/DevPCNet.cpp \
+ 	PC/DevDMA.cpp \
+ 	PC/DevHPET.cpp \
+ 	PC/DevIoApic.cpp \
+ 	Storage/DevFdc.cpp \
+ 	Serial/DevSerial.cpp \
+ 	Parallel/DevParallel.cpp \
+	\
+ 	Input/DrvKeyboardQueue.cpp \
+ 	Input/DrvMouseQueue.cpp \
+ 	Network/DrvIntNet.cpp \
+ 	Network/DrvDedicatedNic.cpp \
+ 	PC/DrvACPI.cpp \
+ 	PC/DrvAcpiCpu.cpp \
+ 	Serial/DrvChar.cpp \
+ 	Serial/DrvNamedPipe.cpp \
+ 	Serial/DrvTCP.cpp \
+ 	Serial/DrvRawFile.cpp \
+ 	Storage/Debug.cpp \
+ 	Storage/DrvVD.cpp \
+ 	Storage/ATAPIPassthrough.cpp \
+ 	Storage/IOBufMgmt.cpp \
+ 	Network/DrvNetSniffer.cpp \
+ 	Network/Pcap.cpp \
+	Storage/DrvHostBase.cpp \
+	Storage/DrvHostDVD.cpp \
+	Storage/DrvHostFloppy.cpp \
+	Storage/HBDMgmt-generic.cpp
+
+ BreadvmDD_SOURCES.win += \
+ 	Storage/DrvHostBase-win.cpp
+ # --- Tracing bits. ---
+
+ ifdef VBOX_WITH_DTRACE_R3
+  BreadvmDD_DEFS           += VBOX_WITH_DTRACE
+  BreadvmDD_USES           += dtrace
+  BreadvmDD_SOURCES        += build/VBoxDD.d
+ endif
+
+ # --- Graphics bits. ---
+
+ ifdef VBOX_WITH_CRHGSMI
+  BreadvmDD_DEFS           += VBOX_WITH_CRHGSMI
+ endif
+ ifdef VBOXWDDM_TEST_UHGSMI
+  BreadvmDD_DEFS           += VBOXWDDM_TEST_UHGSMI
+ endif
+ ifdef VBOXWDDM_WITH_VBVA
+  BreadvmDD_DEFS           += VBOXWDDM_WITH_VBVA
+ endif
+ ifdef VBOX_WITH_VIDEOHWACCEL
+  BreadvmDD_DEFS           += VBOX_WITH_VIDEOHWACCEL
+ endif
+
+ ifdef VBOX_WITH_HGSMI
+  BreadvmDD_DEFS           += VBOX_WITH_HGSMI
+  BreadvmDD_SOURCES        += \
+ 	Graphics/DevVGA_VBVA.cpp \
+ 	Graphics/HGSMI/HGSMIHost.cpp
+  BreadvmDD_LIBS           += \
+ 	$(PATH_STAGE_LIB)/HGSMIHostR3Lib$(VBOX_SUFF_LIB)
+ endif
+
+ ifdef VBOX_WITH_WDDM
+  BreadvmDD_DEFS           += VBOX_WITH_WDDM
+  BreadvmDD_SOURCES        += \
+ 	Graphics/HGSMI/SHGSMIHost.cpp
+ endif
+
+ ifdef VBOX_WITH_VMSVGA
+  BreadvmDD_DEFS           += VBOX_WITH_VMSVGA
+  BreadvmDD_SOURCES        += Graphics/DevVGA-SVGA.cpp
+ endif
+ ifdef VBOX_WITH_VMSVGA3D
+  BreadvmDD_DEFS           += VBOX_WITH_VMSVGA3D
+  BreadvmDD_SOURCES        += \
+  	Graphics/DevVGA-SVGA3d.cpp \
+  	Graphics/DevVGA-SVGA3d-info.cpp \
+  	Graphics/DevVGA-SVGA3d-shared.cpp \
+  	Graphics/DevVGA-SVGA3d-savedstate.cpp
+  if  "$(KBUILD_TARGET)" == "win" && !defined(VBOX_WITH_VMSVGA3D_USE_OPENGL)
+   BreadvmDD_DEFS          += VMSVGA3D_DIRECT3D
+   BreadvmDD_SOURCES       += Graphics/DevVGA-SVGA3d-win.cpp
+   BreadvmDD_LIBS.win      += d3d9.lib $(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/delayimp.lib
+   BreadvmDD_LDFLAGS.win   += /DELAYLOAD:d3d9.dll
+  else
+   BreadvmDD_DEFS          += VMSVGA3D_OPENGL
+   BreadvmDD_SOURCES       += \
+   	Graphics/DevVGA-SVGA3d-ogl.cpp \
+   	$(BreadvmDD_0_OUTDIR)/VBoxSVGA3DLazyLoad.asm
+   BreadvmDD_CLEAN         += $(BreadvmDD_0_OUTDIR)/VBoxSVGA3DLazyLoad.asm
+   $$(BreadvmDD_0_OUTDIR)/VBoxSVGA3DLazyLoad.asm: $(PATH_SUB_CURRENT)/Graphics/VBoxSVGA3D.def $(VBOX_DEF_2_LAZY_LOAD) | $$(dir $$@)
+	$(call MSG_TOOL,VBoxDef2LazyLoad,BreadvmDD,$(filter %.def, $^),$@)
+	$(QUIET)$(RM) -f -- "$@"
+	$(VBOX_DEF_2_LAZY_LOAD) --explicit-load-function --library VBoxSVGA3D --output "$@" $(filter %.def, $^)
+   $$(BreadvmDD_0_OUTDIR)/VBoxSVGA3DObjCLazyLoad.asm: $(PATH_SUB_CURRENT)/Graphics/VBoxSVGA3DObjC.def $(VBOX_DEF_2_LAZY_LOAD) | $$(dir $$@)
+	$(call MSG_TOOL,VBoxDef2LazyLoad,BreadvmDD,$(filter %.def, $^),$@)
+	$(QUIET)$(RM) -f -- "$@"
+	$(VBOX_DEF_2_LAZY_LOAD) --explicit-load-function --library VBoxSVGA3DObjC --output "$@" $(filter %.def, $^)
+
+   BreadvmDD_LIBS.win      += $(PATH_SDK_$(VBOX_WINPSDK)_LIB)/Opengl32.lib
+  endif
+ endif
+
+ ifdef VBOX_WITH_VDMA
+  BreadvmDD_DEFS           += VBOX_WITH_VDMA
+  BreadvmDD_SOURCES        += \
+ 	Graphics/DevVGA_VDMA.cpp
+ endif
+
+ ifdef VBOX_VDMA_WITH_WATCHDOG
+  BreadvmDD_DEFS           += VBOX_VDMA_WITH_WATCHDOG
+ endif
+
+ ifdef VBOX_WITH_PXE_ROM
+  BreadvmDD_DEFS           += VBOX_WITH_PXE_ROM
+ endif
+
+ # --- USB bits. ---
+
+ ifdef VBOX_WITH_USB
+  BreadvmDD_DEFS           += VBOX_WITH_USB
+  BreadvmDD_SOURCES        += \
+  	USB/vrdp/USBProxyDevice-vrdp.cpp \
+  	USB/usbip/USBProxyDevice-usbip.cpp
+  BreadvmDD_DEFS.win       += VUSB_HAVE_USBPROXY_DEVICE
+  BreadvmDD_SOURCES.win    += \
+ 	USB/USBProxyDevice.cpp \
+ 	USB/win/USBProxyDevice-win.cpp
+
+  ifdef VBOX_WITH_SCSI
+   BreadvmDD_SOURCES       += \
+   	Storage/UsbMsd.cpp
+  endif
+
+  if defined(VBOX_WITH_EHCI_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+   BreadvmDD_DEFS          += VBOX_WITH_EHCI_IMPL
+   BreadvmDD_SOURCES       += \
+ 	USB/DevEHCI.cpp
+  endif
+
+  if defined(VBOX_WITH_XHCI_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+   BreadvmDD_DEFS          += VBOX_WITH_XHCI_IMPL
+   BreadvmDD_SOURCES       += \
+ 	USB/DevXHCI.cpp
+  endif
+
+
+ endif # VBOX_WITH_USB
+
+ ifdef VBOX_WITH_VUSB
+  BreadvmDD_DEFS           += VBOX_WITH_VUSB
+  BreadvmDD_SOURCES        += \
+ 	USB/DevOHCI.cpp \
+ 	USB/DrvVUSBRootHub.cpp \
+ 	USB/VUSBDevice.cpp \
+ 	USB/VUSBSniffer.cpp \
+ 	USB/VUSBSnifferPcapNg.cpp \
+ 	USB/VUSBSnifferUsbMon.cpp \
+ 	USB/VUSBSnifferVmx.cpp \
+ 	USB/VUSBUrb.cpp \
+ 	USB/VUSBUrbPool.cpp \
+ 	USB/VUSBUrbTrace.cpp
+ endif
+
+ # --- Networking bits. ---
+
+ ifdef VBOX_WITH_INIP
+  ifndef LWIP_SOURCES
+   include $(PATH_SUB_CURRENT)/Network/lwip-new/Config.kmk
+  endif
+  BreadvmDD_DEFS           += VBOX_WITH_INIP
+  BreadvmDD_SOURCES        += \
+  	Network/DevINIP.cpp \
+  	$(addprefix Network/lwip-new/,$(LWIP_SOURCES))
+  BreadvmDD_INCS           += \
+  	Network \
+  	$(addprefix Network/lwip-new/,$(LWIP_INCS))
+ endif # VBOX_WITH_INIP
+
+ ifdef VBOX_WITH_E1000
+  BreadvmDD_DEFS           += VBOX_WITH_E1000
+  BreadvmDD_SOURCES        += \
+ 	Network/DevE1000.cpp \
+ 	Network/DevE1000Phy.cpp \
+ 	Network/DevEEPROM.cpp
+ endif
+
+ ifdef VBOX_WITH_VIRTIO
+  BreadvmDD_DEFS           += VBOX_WITH_VIRTIO
+  BreadvmDD_SOURCES        += \
+ 	VirtIO/Virtio.cpp \
+ 	Network/DevVirtioNet.cpp
+ endif
+
+ ifdef VBOX_WITH_UDPTUNNEL
+  BreadvmDD_DEFS           += VBOX_WITH_UDPTUNNEL
+  BreadvmDD_SOURCES        += \
+  	Network/DrvUDPTunnel.cpp
+ endif
+
+ ifdef VBOX_WITH_VDE
+  BreadvmDD_DEFS           += VBOX_WITH_VDE
+  BreadvmDD_SOURCES        += \
+  	Network/DrvVDE.cpp \
+  	Network/VDEPlug.cpp
+ endif
+
+ ifdef VBOX_WITH_NETSHAPER
+  BreadvmDD_DEFS           += VBOX_WITH_NETSHAPER
+  BreadvmDD_SOURCES        += \
+ 	Network/DrvNetShaper.cpp
+ endif
+
+ # --- Storage bits. ---
+
+ ifdef VBOX_WITH_AHCI
+  BreadvmDD_DEFS           += VBOX_WITH_AHCI IN_AHCI_R3
+  BreadvmDD_SOURCES        += \
+ 	Storage/DevAHCI.cpp
+ endif
+
+ ifdef VBOX_WITH_BUSLOGIC
+  BreadvmDD_DEFS           += VBOX_WITH_BUSLOGIC
+  BreadvmDD_SOURCES        += \
+ 	Storage/DevBusLogic.cpp \
+ 	Storage/VBoxSCSI.cpp
+ endif
+
+ ifdef VBOX_WITH_LSILOGIC
+  BreadvmDD_DEFS           += VBOX_WITH_LSILOGIC
+  BreadvmDD_SOURCES        += \
+ 	Storage/DevLsiLogicSCSI.cpp
+ endif
+
+  if defined(VBOX_WITH_NVME_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+   BreadvmDD_DEFS          += VBOX_WITH_NVME_IMPL
+   BreadvmDD_SOURCES       += \
+ 	Storage/DevNVMe.cpp
+  endif
+
+ ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
+  BreadvmDD_DEFS           += VBOX_WITH_PDM_ASYNC_COMPLETION
+ endif
+
+ ifdef VBOX_WITH_SCSI
+  BreadvmDD_DEFS           += VBOX_WITH_SCSI
+  BreadvmDD_SOURCES        += \
+  	Storage/DrvSCSI.cpp
+ endif
+
+ ifdef VBOX_WITH_ISCSI
+  $(eval $(call def_vbox_lwip_flags, \
+                    BreadvmDD, Storage/DrvVD.cpp, Network/lwip-new))
+ endif
+
+ ifdef VBOX_WITH_DRV_DISK_INTEGRITY
+  BreadvmDD_DEFS           += VBOX_WITH_DRV_DISK_INTEGRITY
+  BreadvmDD_SOURCES        += \
+  	Storage/DrvDiskIntegrity.cpp \
+  	Storage/DrvRamDisk.cpp
+ endif
+
+ ifdef VBOX_WITH_EFI
+  BreadvmDD_DEFS           += VBOX_WITH_EFI
+  BreadvmDD_SOURCES        += EFI/DevEFI.cpp
+  EFI/DevEFI.cpp_INCS       += EFI/Firmware/BaseTools/Source/C/Include
+  EFI/DevEFI.cpp_INCS.x86   += EFI/Firmware/BaseTools/Source/C/Include/Ia32
+  EFI/DevEFI.cpp_INCS.amd64 += EFI/Firmware/BaseTools/Source/C/Include/X64
+ endif
+
+ if defined(VBOX_WITH_PCI_PASSTHROUGH_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+  BreadvmDD_DEFS           += VBOX_WITH_PCI_PASSTHROUGH_IMPL
+  BreadvmDD_SOURCES        += \
+	Bus/DevPciRaw.cpp \
+	Bus/DrvPciRaw.cpp
+ endif
+
+ ifdef VBOX_WITH_MSI_DEVICES
+  BreadvmDD_DEFS           += VBOX_WITH_MSI_DEVICES
+ endif
+
+ ifdef VBOX_WITH_DYNAMIC_DSDT
+  BreadvmDD_DEFS           += VBOX_WITH_DYNAMIC_DSDT
+ endif
+
+ # --- Audio bits (see also VBOX_AUDIO_DEFS in ./Config.kmk). ---
+
+ BreadvmDD_DEFS += $(VBOX_AUDIO_DEFS)
+ BreadvmDD_SOURCES         += \
+	Audio/DevIchAc97.cpp \
+	Audio/DevSB16.cpp \
+	Audio/DevHDA.cpp \
+	Audio/DevHDACommon.cpp \
+	Audio/HDACodec.cpp \
+	Audio/HDAStream.cpp \
+	Audio/HDAStreamChannel.cpp \
+	Audio/HDAStreamMap.cpp \
+	Audio/HDAStreamPeriod.cpp \
+	Audio/AudioMixBuffer.cpp \
+	Audio/AudioMixer.cpp \
+	Audio/DrvAudio.cpp \
+	Audio/DrvAudioCommon.cpp \
+	Audio/DrvHostNullAudio.cpp
+
+ ifdef VBOX_WITH_AUDIO_DEBUG
+  BreadvmDD_DEFS    += VBOX_WITH_AUDIO_DEBUG
+  BreadvmDD_SOURCES += \
+	Audio/DrvHostDebugAudio.cpp
+ endif
+
+ ifdef VBOX_WITH_AUDIO_VALIDATIONKIT
+  BreadvmDD_DEFS    += VBOX_WITH_AUDIO_VALIDATIONKIT
+  BreadvmDD_SOURCES += \
+	Audio/DrvHostValidationKit.cpp
+ endif
+
+ ifeq ($(KBUILD_TARGET),win)
+  BreadvmDD_SOURCES += \
+	Audio/DrvHostDSound.cpp
+  ifdef VBOX_WITH_AUDIO_MMNOTIFICATION_CLIENT
+   BreadvmDD_SOURCES += \
+	Audio/VBoxMMNotificationClient.cpp
+   BreadvmDD_DEFS    += VBOX_WITH_AUDIO_MMNOTIFICATION_CLIENT
+  endif
+ endif
+
+ ifdef VBOX_WITH_AUDIO_OSS
+  BreadvmDD_DEFS    += VBOX_WITH_AUDIO_OSS
+  BreadvmDD_SOURCES += \
+	Audio/DrvHostOSSAudio.cpp
+ endif
+
+ ifdef VBOX_WITH_AUDIO_ALSA
+  BreadvmDD_DEFS    += VBOX_WITH_AUDIO_ALSA
+  BreadvmDD_SOURCES += \
+	Audio/DrvHostALSAAudio.cpp \
+	Audio/alsa_stubs.c
+ endif
+
+ ifdef VBOX_WITH_AUDIO_PULSE
+  BreadvmDD_DEFS    += VBOX_WITH_AUDIO_PULSE
+  BreadvmDD_SOURCES += \
+	Audio/DrvHostPulseAudio.cpp \
+	Audio/pulse_stubs.c
+ endif
+
+ # --- WARNING! SLIRP MESS AHEAD! ;-) ---
+ VBOX_SLIRP_SOURCES = \
+ 	Network/DrvNAT.cpp \
+ 	Network/slirp/bootp.c \
+  	Network/slirp/debug.c \
+ 	Network/slirp/ip_icmp.c \
+ 	Network/slirp/ip_input.c \
+ 	Network/slirp/ip_output.c \
+ 	Network/slirp/misc.c \
+ 	Network/slirp/sbuf.c \
+ 	Network/slirp/slirp.c \
+ 	Network/slirp/slirp_dns.c \
+ 	Network/slirp/socket.c \
+ 	Network/slirp/tcp_input.c \
+ 	Network/slirp/tcp_output.c \
+ 	Network/slirp/tcp_subr.c \
+ 	Network/slirp/tcp_timer.c \
+ 	Network/slirp/udp.c \
+	Network/slirp/hostres.c \
+ 	Network/slirp/dnsproxy/hash.c \
+ 	Network/slirp/tftp.c \
+ 	Network/slirp/dnsproxy/dnsproxy.c
+
+ ifeq ($(KBUILD_TARGET), win)
+  VBOX_SLIRP_SOURCES += Network/slirp/ip_icmpwin.c
+ endif
+
+ ifneq ($(KBUILD_TARGET), win)
+  VBOX_SLIRP_SOURCES +=  	Network/slirp/resolv_conf_parser.c
+ endif
+
+ VBOX_SLIRP_BSD_ARCH = $(subst x86,i386,$(KBUILD_TARGET_ARCH))
+ VBOX_SLIRP_BSD_SOURCES += \
+ 	Network/slirp/bsd/kern/kern_mbuf.c \
+ 	Network/slirp/bsd/kern/uipc_mbuf.c \
+ 	Network/slirp/bsd/kern/uipc_mbuf2.c \
+ 	Network/slirp/bsd/$(VBOX_SLIRP_BSD_ARCH)/in_cksum.c
+ VBOX_SLIRP_ALIAS_SOURCES = \
+ 	Network/slirp/libalias/alias.c \
+ 	Network/slirp/libalias/alias_db.c \
+ 	Network/slirp/libalias/alias_mod.c \
+ 	Network/slirp/libalias/alias_proxy.c \
+ 	Network/slirp/libalias/alias_ftp.c \
+ 	Network/slirp/libalias/alias_nbt.c \
+ 	Network/slirp/libalias/alias_util.c
+
+ # Enable VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER here for a while, then move to
+ # $(file)_DEFS or clean the code disabled with this definition.
+ VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER=1
+
+ # dump memory related operations.
+ Network/slirp/misc.c_DEFS += $(if $(VBOX_NAT_MEM_DEBUG),VBOX_NAT_MEM_DEBUG,)
+
+ BreadvmDD_SOURCES += $(VBOX_SLIRP_SOURCES)
+ define def_vbox_slirp_cflags
+   $(file)_DEFS += \
+       $(if $(VBOX_WITH_SLIRP_MEMORY_CHECK),RTMEM_WRAP_TO_EF_APIS,) \
+       $(if $(VBOX_WITH_DEBUG_NAT_SOCKETS),VBOX_WITH_DEBUG_NAT_SOCKETS,)	\
+       $(if $(VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER),VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER,)	\
+       $(if $(VBOX_WITH_NAT_SEND2HOME),VBOX_WITH_NAT_SEND2HOME,)	\
+       $(if $(VBOX_WITH_HIDDEN_TCPTEMPLATE),VBOX_WITH_HIDDEN_TCPTEMPLATE,)	\
+       $(if $(VBOX_WITH_SLIRP_MT),VBOX_WITH_SLIRP_MT,)
+  $(file)_INCS += \
+	$(1)/slirp/bsd/sys \
+	$(1)/slirp/bsd/sys/sys \
+	$(1)/slirp/bsd/$(VBOX_SLIRP_BSD_ARCH)/include \
+	$(1)/slirp/bsd/netinet \
+	$(1)/slirp \
+	$(1)/slirp/libalias
+  ifeq ($(KBUILD_TARGET),win)
+   $(file)_CFLAGS = -wd4018
+  else
+   $(file)_CFLAGS += -Wno-sign-compare -Wno-format -Wno-bad-function-cast
+  endif
+ endef
+
+ $(foreach file,$(VBOX_SLIRP_SOURCES),$(eval $(call def_vbox_slirp_cflags, Network)))
+
+ BreadvmDD_SOURCES += $(VBOX_SLIRP_ALIAS_SOURCES)
+ define def_vbox_slirp_alias_cflags
+   $(file)_DEFS += VBOX_SLIRP_ALIAS \
+       $(if $(VBOX_WITH_DEBUG_LIBALIAS),VBOX_WITH_DEBUG_LIBALIAS,)
+   $(file)_INCS += \
+	$(1)/slirp/libalias \
+	$(1)/slirp \
+	$(1)/slirp/dnsproxy
+   ifneq ($(KBUILD_TARGET),win)
+    $(file)_CFLAGS += -Wno-shadow
+   endif
+ endef
+ $(foreach file,$(VBOX_SLIRP_ALIAS_SOURCES),$(eval $(call def_vbox_slirp_cflags, Network)))
+ $(foreach file,$(VBOX_SLIRP_ALIAS_SOURCES),$(eval $(call def_vbox_slirp_alias_cflags, Network)))
+
+ VBOX_SLIRP_BSD_SOURCES += $(VBOX_SLIRP_BSD_SOURCES.${KBUILD_TARGET_ARCH})
+ BreadvmDD_SOURCES += $(VBOX_SLIRP_BSD_SOURCES)
+ define def_vbox_slirp_bsd_cflags
+  $(file)_DEFS += VBOX_SLIRP_BSD
+  $(file)_INCS += $(1)/slirp/dnsproxy
+ endef
+ $(foreach file,$(VBOX_SLIRP_BSD_SOURCES),$(eval $(call def_vbox_slirp_cflags, Network)))
+ $(foreach file,$(VBOX_SLIRP_BSD_SOURCES),$(eval $(call def_vbox_slirp_bsd_cflags, Network)))
+
+
+ # --- OS specific driver hacks. ---
+
+ BreadvmDD_DEFS.win += VBOX_WITH_WIN_PARPORT_SUP
+ BreadvmDD_SOURCES.win += \
+	Serial/DrvHostSerial.cpp \
+	Parallel/DrvHostParallel.cpp
+
+ ifdef VBOX_WITH_VIRTUALKD
+  BreadvmDD_DEFS.win     += VBOX_WITH_VIRTUALKD
+  BreadvmDD_SOURCES.win  += \
+	Misc/VirtualKD.cpp
+ endif
+
+ if defined(VBOX_WITH_NETFLT)
+  BreadvmDD_DEFS += VBOX_WITH_NETFLT
+  if defined(VBOX_NETFLT_ONDEMAND_BIND)
+   BreadvmDD_DEFS.win += VBOX_NETFLT_ONDEMAND_BIND
+  endif
+ endif
+
+
+ # --- Final bits, mostly libraries for order dependant linkers. ---
+
+ BreadvmDD_LIBS            += \
+ 	$(PATH_STAGE_LIB)/VgaDefBiosLogo$(VBOX_SUFF_LIB) \
+ 	$(LIB_VMM) \
+ 	$(LIB_RUNTIME)
+ ifeq ($(KBUILD_TARGET),win)
+  BreadvmDD_LIBS           += \
+ 	$(LIB_DDU) \
+ 	$(PATH_STAGE_LIB)/BreadvmDD2.lib \
+ 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/dxguid.lib
+ else
+  BreadvmDD_LIBS           += \
+ 	$(BreadvmDDU_1_STAGE_TARGET) \
+ 	$(BreadvmDD2_1_STAGE_TARGET)
+ endif
+
+ ifdef VBOX_WITH_NETFLT
+  BreadvmDD_LIBS.win       += $(PATH_STAGE_LIB)/WinNetConfig.lib
+ endif
+
+ ifeq ($(KBUILD_TARGET),solaris)
+  BreadvmDD_LIBS           += adm
+  ifdef VBOX_WITH_SUID_WRAPPER
+   BreadvmDD_LIBS          += secdb
+  endif
+  ifdef VBOX_WITH_USB
+   BreadvmDD_LIBS          += aio
+  endif
+ endif
+
+ ifdef VBOX_WITH_DYNAMIC_DSDT
+  BreadvmDD_CLEAN          += $(BreadvmDD_0_OUTDIR)/vboxdsl.hex
+  PC/ACPI/VBoxAcpi.cpp_DEPS = $(BreadvmDD_0_OUTDIR)/vboxdsl.hex
+
+  $$(BreadvmDD_0_OUTDIR)/vboxdsl.hex: $(PATH_SUB_CURRENT)/PC/vbox.dsl | $$(dir $$@)
+	$(call MSG_TOOL,bin2c,BreadvmDD,$<,$@)
+	$(QUIET)$(VBOX_BIN2C) -export VboxDslSource $< $@
+
+  vboxdsl.hex:: $$(BreadvmDD_0_OUTDIR)/vboxdsl.hex
+
+ else  # !VBOX_WITH_DYNAMIC_DSDT
+  # VBoxAcpi.cpp needs vboxaml.hex which we generate from PC/vbox.dsl
+  BreadvmDD_CLEAN       += \
+ 	$(BreadvmDD_0_OUTDIR)/vboxaml.hex \
+ 	$(BreadvmDD_0_OUTDIR)/vboxaml.aml \
+ 	$(BreadvmDD_0_OUTDIR)/vboxaml.aml.tmp \
+ 	$(BreadvmDD_0_OUTDIR)/vboxssdt_standard.hex \
+ 	$(BreadvmDD_0_OUTDIR)/vboxssdt_standard.aml \
+ 	$(BreadvmDD_0_OUTDIR)/vboxssdt_standard.aml.tmp \
+ 	$(BreadvmDD_0_OUTDIR)/vboxssdt_cpuhotplug.hex \
+ 	$(BreadvmDD_0_OUTDIR)/vboxssdt_cpuhotplug.aml \
+ 	$(BreadvmDD_0_OUTDIR)/vboxssdt_cpuhotplug.aml.tmp \
+ 	$(BreadvmDD_0_OUTDIR)/vboxssdt_cpuhotplug.aml.pre
+  PC/ACPI/VBoxAcpi.cpp_DEPS = \
+ 	$(BreadvmDD_0_OUTDIR)/vboxaml.hex \
+ 	$(BreadvmDD_0_OUTDIR)/vboxssdt_standard.hex \
+ 	$(BreadvmDD_0_OUTDIR)/vboxssdt_cpuhotplug.hex
+
+  $$(BreadvmDD_0_OUTDIR)/vboxaml.hex: $(PATH_SUB_CURRENT)/PC/vbox.dsl | $$(dir $$@)
+	$(call MSG_TOOL,iasl,BreadvmDD,$<,$@)
+	$(QUIET)$(VBOX_IASLCMD) -tc -vs -p $@ $<
+	$(QUIET)$(MV) -f $@ $@.tmp
+	$(QUIET)$(SED) -e "s/vboxaml_aml_code/AmlCode/g" \
+		--output $@ $@.tmp
+	$(QUIET)$(RM) -f $@.tmp
+
+  vboxaml.hex:: $$(BreadvmDD_0_OUTDIR)/vboxaml.hex
+
+  $$(BreadvmDD_0_OUTDIR)/vboxssdt_standard.hex: $(PATH_SUB_CURRENT)/PC/vbox-standard.dsl | $$(dir $$@)
+	$(call MSG_TOOL,iasl,BreadvmDD,$<,$@)
+	$(QUIET)$(RM) -f $@ $@.tmp
+	$(QUIET)$(VBOX_IASLCMD) -tc -vs -p $@ $<
+	$(QUIET)$(MV) -f $@ $@.tmp
+	$(QUIET)$(SED) -e "s/AmlCode\|vboxssdt_standard_aml_code/AmlCodeSsdtStandard/g" \
+		--output $@ $@.tmp
+	$(QUIET)$(RM) -f $@.tmp
+
+
+  vboxssdt_standard.hex:: $$(BreadvmDD_0_OUTDIR)/vboxssdt_standard.hex
+
+  $$(BreadvmDD_0_OUTDIR)/vboxssdt_cpuhotplug.hex: $(PATH_SUB_CURRENT)/PC/vbox-cpuhotplug.dsl | $$(dir $$@)
+	$(call MSG_TOOL,iasl,BreadvmDD,$<,$@)
+	$(QUIET)$(RM) -f $@ $@.tmp $@.pre
+	$(QUIET)$(TOOL_$(VBOX_GCC_TOOL)_CC) -E -P -x c -o $@.pre $<
+	$(QUIET)$(SED) -e "s/<NL>/\n/g" \
+		--output $@.pre1 $@.pre
+	$(QUIET)$(VBOX_IASLCMD) -tc -vs -p $@ $@.pre1
+	$(QUIET)$(MV) -f $@ $@.tmp
+	$(QUIET)$(SED) -e "s/AmlCode\|vboxssdt_cpuhotplug_aml_code/AmlCodeSsdtCpuHotPlug/g" \
+		--output $@ $@.tmp
+	$(QUIET)$(RM) -f $@.tmp $@.pre $@.pre1
+
+
+  vboxssdt_cpuhotplug.hex:: $$(BreadvmDD_0_OUTDIR)/vboxssdt_cpuhotplug.hex
+
+ endif # !VBOX_WITH_DYNAMIC_DSDT
+ PC/ACPI/VBoxAcpi.cpp_INCS = $(BreadvmDD_0_OUTDIR)
+
+ # For finding PCIInternal.h from VBox/pci.h.
+ Bus/DevPCI.cpp_INCS      = Bus
+ Bus/DevPciIch9.cpp_INCS  = Bus
+ Bus/MsiCommon.cpp_INCS   = Bus
+ Bus/MsixCommon.cpp_INCS  = Bus
+ Bus/DevPciRaw.cpp_INCS   = Bus
+
+ # For finding and generating vbetables.h (see Graphics/BIOS/Makefile.kmk).
+ Graphics/DevVGA.cpp_INCS = $(VgaBiosBin_0_OUTDIR) $(VBOX_GRAPHICS_INCS)
+ Graphics/DevVGA.cpp_DEPS = $(VgaBiosBin_0_OUTDIR)/vbetables.h
+
+ $(call VBOX_SET_VER_INFO_DLL,BreadvmDD,BreadvmBox VMM Devices and Drivers) # (last!)
+
+
+ ifdef VBOX_WITH_RAW_MODE
+  #
+  # BreadvmDDRC (sysmod)
+  #
+  BreadvmDDRC_TEMPLATE       = VBoxRc
+  BreadvmDDRC_DEFS           = $(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,)
+  BreadvmDDRC_INCS           = build $(VBOX_GRAPHICS_INCS)
+  BreadvmDDRC_SOURCES        = \
+  	Bus/DevPCI.cpp \
+  	Bus/DevPciIch9.cpp \
+  	Bus/MsiCommon.cpp \
+  	Bus/MsixCommon.cpp \
+  	EFI/DevSmc.cpp \
+  	Graphics/DevVGA.cpp \
+  	Input/DevPS2.cpp \
+  	Input/PS2K.cpp \
+  	Input/PS2M.cpp \
+  	PC/DevACPI.cpp \
+  	PC/DevIoApic.cpp \
+  	PC/DevPit-i8254.cpp \
+  	PC/DevPIC.cpp \
+  	PC/DevRTC.cpp \
+  	PC/DevHPET.cpp \
+  	Storage/DevATA.cpp \
+  	Network/DevPCNet.cpp \
+  	Serial/DevSerial.cpp \
+  	Parallel/DevParallel.cpp \
+  	VMMDev/VMMDevTesting.cpp
+
+  BreadvmDDRC_DEFS         += $(VBOX_AUDIO_DEFS)
+  BreadvmDDRC_SOURCES      += \
+ 	Audio/DevHDA.cpp \
+ 	Audio/DevHDACommon.cpp \
+	Audio/DevIchAc97.cpp
+
+  BreadvmDDRC_DEFS         += \
+	$(if $(VBOX_WITH_HP_HDA),VBOX_WITH_HP_HDA,) \
+	$(if $(VBOX_WITH_INTEL_HDA),VBOX_WITH_INTEL_HDA,) \
+	$(if $(VBOX_WITH_NVIDIA_HDA),VBOX_WITH_NVIDIA_HDA,)
+
+  ifdef VBOX_WITH_E1000
+   BreadvmDDRC_DEFS        += VBOX_WITH_E1000
+   BreadvmDDRC_SOURCES     += \
+  	Network/DevE1000.cpp \
+  	Network/DevE1000Phy.cpp
+  endif
+
+  ifdef VBOX_WITH_VIRTIO
+   BreadvmDDRC_DEFS        += VBOX_WITH_VIRTIO
+   BreadvmDDRC_SOURCES     += \
+  	VirtIO/Virtio.cpp \
+  	Network/DevVirtioNet.cpp
+  endif
+
+  ifdef VBOX_WITH_HGSMI
+   BreadvmDDRC_DEFS        += VBOX_WITH_HGSMI
+  endif
+  ifdef VBOX_WITH_WDDM
+   BreadvmDDRC_DEFS        += VBOX_WITH_WDDM
+  endif
+  ifdef VBOX_WITH_VDMA
+   BreadvmDDRC_DEFS        += VBOX_WITH_VDMA
+  endif
+  ifdef VBOX_WITH_CRHGSMI
+   BreadvmDDRC_DEFS        += VBOX_WITH_CRHGSMI
+  endif
+  ifdef VBOXWDDM_WITH_VBVA
+   BreadvmDDRC_DEFS        += VBOXWDDM_WITH_VBVA
+  endif
+  ifdef VBOX_WITH_VMSVGA
+   BreadvmDDRC_DEFS         += VBOX_WITH_VMSVGA
+   BreadvmDDRC_SOURCES      += \
+ 	Graphics/DevVGA-SVGA.cpp
+  endif
+  ifdef VBOX_WITH_VMSVGA3D
+   BreadvmDDRC_DEFS         += VBOX_WITH_VMSVGA3D
+  endif
+  ifdef VBOX_VDMA_WITH_WATCHDOG
+   BreadvmDDRC_DEFS        += VBOX_VDMA_WITH_WATCHDOG
+  endif
+
+  ifdef VBOX_WITH_VUSB
+   BreadvmDDRC_DEFS        += VBOX_WITH_VUSB
+   BreadvmDDRC_SOURCES     += \
+ 	USB/DevOHCI.cpp
+  endif
+
+  ifdef VBOX_WITH_USB
+   BreadvmDDRC_DEFS        += VBOX_WITH_USB
+   if defined(VBOX_WITH_EHCI_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+    BreadvmDDRC_DEFS       += VBOX_WITH_EHCI_IMPL
+    BreadvmDDRC_SOURCES    += \
+  	USB/DevEHCI.cpp
+   endif
+   if defined(VBOX_WITH_XHCI_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+    BreadvmDDRC_DEFS       += VBOX_WITH_XHCI_IMPL
+    BreadvmDDRC_SOURCES    += \
+  	USB/DevXHCI.cpp
+   endif
+  endif
+
+  ifdef VBOX_WITH_VIDEOHWACCEL
+   BreadvmDDRC_DEFS        += VBOX_WITH_VIDEOHWACCEL
+  endif
+
+  ifdef VBOX_WITH_AHCI
+  BreadvmDDRC_DEFS         += VBOX_WITH_AHCI IN_AHCI_GC
+  BreadvmDDRC_SOURCES      += \
+  	Storage/DevAHCI.cpp
+  endif
+
+  ifdef VBOX_WITH_BUSLOGIC
+  BreadvmDDRC_DEFS         += VBOX_WITH_BUSLOGIC
+  BreadvmDDRC_SOURCES      += \
+  	Storage/DevBusLogic.cpp
+  endif
+
+  ifdef VBOX_WITH_LSILOGIC
+  BreadvmDDRC_DEFS         += VBOX_WITH_LSILOGIC
+  BreadvmDDRC_SOURCES      += \
+  	Storage/DevLsiLogicSCSI.cpp
+  endif
+
+  if defined(VBOX_WITH_NVME_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+   BreadvmDDGC_DEFS       += VBOX_WITH_NVME_IMPL
+   BreadvmDDGC_SOURCES    += \
+  	Storage/DevNVMe.cpp
+  endif
+
+  if1of ($(VBOX_LDR_FMT32), pe lx)
+  BreadvmDDRC_LIBS           = \
+  	$(PATH_STAGE_LIB)/VMMRCBuiltin$(VBOX_SUFF_LIB) \
+  	$(PATH_STAGE_LIB)/VMMRCImp$(VBOX_SUFF_LIB)
+  endif
+ endif # VBOX_WITH_RAW_MODE
+
+ $(call VBOX_SET_VER_INFO_RC,BreadvmDDRC,BreadvmBox VMM Devices and Drivers$(COMMA) raw-mode) # last!
+
+
+ #
+ # BreadvmDD2 (shared object)
+ #
+ BreadvmDD2_TEMPLATE        = VBoxR3DllWarnNoPic
+ BreadvmDD2_DEFS            = \
+	IN_VBOXDD2 \
+	$(if $(VBOX_WITH_PXE_ROM),VBOX_WITH_PXE_ROM,)
+ BreadvmDD2_INCS           := \
+	build \
+ 	$(PATH_SUB_CURRENT)
+ BreadvmDD2_SOURCES         = \
+ 	build/VBoxDD2.cpp  \
+ 	PC/DevLPC.cpp
+ BreadvmDD2_LIBS            = \
+ 	$(PATH_STAGE_LIB)/PcBiosBin$(VBOX_SUFF_LIB) \
+ 	$(PATH_STAGE_LIB)/VgaBiosBin$(VBOX_SUFF_LIB) \
+ 	$(if $(VBOX_WITH_PXE_ROM),\
+	  $(if $(VBOX_WITH_INTEL_PXE),\
+	    $(PATH_STAGE_LIB)/NetBiosBin$(VBOX_SUFF_LIB),\
+	    $(PATH_STAGE_LIB)/iPxeBiosBin$(VBOX_SUFF_LIB)),) \
+ 	$(LIB_VMM) \
+ 	$(LIB_RUNTIME)
+
+ $(call VBOX_SET_VER_INFO_DLL,BreadvmDD2,BreadvmBox VMM Devices and Drivers 2) # (last!)
+
+ #
+ # BreadvmDDR0 (sysmod)
+ #
+ BreadvmDDR0_TEMPLATE       = VBoxR0
+ BreadvmDDR0_DEFS           = IN_RT_R0 $(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) # - WTF is IN_RT_R0 doing here?
+ BreadvmDDR0_DEFS.win      += VBOX_WITH_WIN_PARPORT_SUP
+ BreadvmDDR0_INCS           = build $(VBOX_GRAPHICS_INCS)
+ BreadvmDDR0_SDKS.win 	  = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
+ BreadvmDDR0_SOURCES        = \
+ 	Bus/DevPCI.cpp \
+ 	Bus/DevPciIch9.cpp \
+ 	Bus/MsiCommon.cpp \
+ 	Bus/MsixCommon.cpp \
+ 	EFI/DevSmc.cpp \
+ 	Graphics/DevVGA.cpp \
+ 	Input/DevPS2.cpp \
+ 	Input/PS2K.cpp \
+ 	Input/PS2M.cpp \
+ 	PC/DevACPI.cpp \
+ 	PC/DevIoApic.cpp \
+ 	PC/DevPit-i8254.cpp \
+ 	PC/DevPIC.cpp \
+ 	PC/DevRTC.cpp \
+ 	PC/DevHPET.cpp \
+ 	Storage/DevATA.cpp \
+ 	Network/DevPCNet.cpp \
+ 	Serial/DevSerial.cpp \
+ 	Parallel/DevParallel.cpp \
+ 	VMMDev/VMMDevTesting.cpp \
+ 	Network/DrvIntNet.cpp \
+ 	Network/DrvDedicatedNic.cpp
+
+ BreadvmDDR0_SOURCES.win += Parallel/DrvHostParallel.cpp
+
+ BreadvmDDR0_DEFS          += \
+	$(if $(VBOX_WITH_HGSMI),VBOX_WITH_HGSMI,) \
+	$(if $(VBOX_WITH_WDDM),VBOX_WITH_WDDM,) \
+	$(if $(VBOX_WITH_VDMA),VBOX_WITH_VDMA,) \
+	$(if $(VBOX_WITH_CRHGSMI),VBOX_WITH_CRHGSMI,) \
+	$(if $(VBOXWDDM_WITH_VBVA),VBOXWDDM_WITH_VBVA,) \
+	$(if $(VBOX_VDMA_WITH_WATCHDOG),VBOX_VDMA_WITH_WATCHDOG,) \
+	$(if $(VBOX_WITH_HP_HDA),VBOX_WITH_HP_HDA,) \
+	$(if $(VBOX_WITH_INTEL_HDA),VBOX_WITH_INTEL_HDA,) \
+	$(if $(VBOX_WITH_NVIDIA_HDA),VBOX_WITH_NVIDIA_HDA,)
+
+ BreadvmDDR0_DEFS += $(VBOX_AUDIO_DEFS)
+ BreadvmDDR0_SOURCES += \
+ 	Audio/DevHDA.cpp \
+ 	Audio/DevHDACommon.cpp \
+	Audio/DevIchAc97.cpp
+
+ ifdef VBOX_WITH_E1000
+  BreadvmDDR0_DEFS         += VBOX_WITH_E1000
+  BreadvmDDR0_SOURCES      += \
+ 	Network/DevE1000.cpp \
+ 	Network/DevE1000Phy.cpp
+ endif
+
+ ifdef VBOX_WITH_VIRTIO
+  BreadvmDDR0_DEFS         += VBOX_WITH_VIRTIO
+  BreadvmDDR0_SOURCES      += \
+	VirtIO/Virtio.cpp \
+  	Network/DevVirtioNet.cpp
+ endif
+
+ ifdef VBOX_WITH_NETSHAPER
+  BreadvmDDR0_DEFS         += VBOX_WITH_NETSHAPER
+  BreadvmDDR0_SOURCES      += \
+ 	Network/DrvNetShaper.cpp
+ endif
+
+ ifdef VBOX_WITH_VMSVGA
+  BreadvmDDR0_DEFS         += VBOX_WITH_VMSVGA
+  BreadvmDDR0_SOURCES      += \
+	Graphics/DevVGA-SVGA.cpp
+ endif
+ ifdef VBOX_WITH_VMSVGA3D
+  BreadvmDDR0_DEFS         += VBOX_WITH_VMSVGA3D
+ endif
+
+ ifdef VBOX_WITH_VUSB
+  BreadvmDDR0_DEFS         += VBOX_WITH_VUSB
+  BreadvmDDR0_SOURCES      += \
+ 	USB/DevOHCI.cpp
+ endif
+ ifdef VBOX_WITH_USB
+ BreadvmDDR0_DEFS          += VBOX_WITH_USB
+  if defined(VBOX_WITH_EHCI_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+   BreadvmDDR0_DEFS        += VBOX_WITH_EHCI_IMPL
+   BreadvmDDR0_SOURCES     += \
+ 	USB/DevEHCI.cpp
+  endif
+  if defined(VBOX_WITH_XHCI_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+   BreadvmDDR0_DEFS        += VBOX_WITH_XHCI_IMPL
+   BreadvmDDR0_SOURCES     += \
+ 	USB/DevXHCI.cpp
+  endif
+ endif
+
+ if defined(VBOX_WITH_PCI_PASSTHROUGH_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+  BreadvmDDR0_SOURCES      += \
+	Bus/DevPciRaw.cpp
+ endif
+
+ ifdef VBOX_WITH_AHCI
+ BreadvmDDR0_DEFS          += VBOX_WITH_AHCI IN_AHCI_R0
+ BreadvmDDR0_SOURCES       += \
+ 	Storage/DevAHCI.cpp
+ endif
+
+ ifdef VBOX_WITH_BUSLOGIC
+ BreadvmDDR0_DEFS          += VBOX_WITH_BUSLOGIC
+ BreadvmDDR0_SOURCES       += \
+ 	Storage/DevBusLogic.cpp
+ endif
+
+ ifdef VBOX_WITH_LSILOGIC
+ BreadvmDDR0_DEFS          += VBOX_WITH_LSILOGIC
+ BreadvmDDR0_SOURCES       += \
+ 	Storage/DevLsiLogicSCSI.cpp
+ endif
+
+ if defined(VBOX_WITH_NVME_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+  BreadvmDDR0_DEFS       += VBOX_WITH_NVME_IMPL
+  BreadvmDDR0_SOURCES    += \
+ 	Storage/DevNVMe.cpp
+ endif
+
+ ifdef VBOX_WITH_HGSMI
+  BreadvmDDR0_DEFS         += VBOX_WITH_HGSMI
+ endif
+ ifdef VBOX_WITH_VIDEOHWACCEL
+  BreadvmDDR0_DEFS         += VBOX_WITH_VIDEOHWACCEL
+ endif
+
+ if1of ($(VBOX_LDR_FMT), pe lx)
+ BreadvmDDR0_LIBS           = \
+ 	$(PATH_STAGE_LIB)/VMMR0Imp$(VBOX_SUFF_LIB) \
+ 	$(PATH_STAGE_LIB)/SUPR0$(VBOX_SUFF_LIB)
+ endif
+
+ $(call VBOX_SET_VER_INFO_R0,BreadvmDDR0,BreadvmBox VMM Devices and Drivers$(COMMA) ring-0) # (last!)
+
+
+ #
+ # Ring-0 Services (library, linked into BreadvmR0.r0)
+ #
+ ServicesR0_TEMPLATE  = VBoxR0
+ ServicesR0_DEFS      = IN_INTNET_R0 IN_RT_R0 \
+	$(if $(VBOX_WITH_PCI_PASSTHROUGH),IN_PCIRAW_R0,) \
+	$(if $(VBOX_WITH_NAT_SERVICE),VBOX_WITH_NAT_SERVICE,)
+ ServicesR0_SOURCES   = \
+ 	Network/SrvIntNetR0.cpp \
+        $(if $(VBOX_WITH_PCI_PASSTHROUGH),Bus/SrvPciRawR0.cpp,)
+ Network/SrvIntNetR0.cpp_CXXFLAGS := $(if-expr $(KBUILD_TARGET) == "win",,$(VBOX_GCC_Wno-array_bounds))
+
+
+
+endif # !VBOX_ONLY_EXTPACKS
+
+include $(FILE_KBUILD_SUB_FOOTER)
+

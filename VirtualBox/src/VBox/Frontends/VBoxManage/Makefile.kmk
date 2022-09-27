@@ -1,0 +1,114 @@
+# $Id: Makefile.kmk $
+## @file
+# Sub-Makefile for VBoxManage (the cli frontend).
+#
+
+#
+# Copyright (C) 2006-2017 Oracle Corporation
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+
+SUB_DEPTH = ../../../..
+include $(KBUILD_PATH)/subheader.kmk
+
+include $(PATH_ROOT)/doc/manual/Config.kmk
+
+
+VBOX_COMMON_VBOXMANAGE_DEFS = \
+ 	$(if $(VBOX_WITH_AHCI), VBOX_WITH_AHCI) \
+ 	$(if $(VBOX_WITH_COPYTOGUEST),VBOX_WITH_COPYTOGUEST) \
+ 	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000) \
+ 	$(if $(VBOX_WITH_GUEST_CONTROL),VBOX_WITH_GUEST_CONTROL) \
+ 	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS) \
+ 	$(if $(VBOX_WITH_HEADLESS), VBOX_WITH_HEADLESS) \
+ 	$(if $(VBOX_WITH_HGCM), VBOX_WITH_HGCM) \
+ 	$(if $(VBOX_WITH_HOSTNETIF_API), VBOX_WITH_HOSTNETIF_API) \
+ 	$(if $(VBOX_WITH_NETFLT), VBOX_WITH_NETFLT) \
+	$(if $(VBOX_WITH_AUDIO_OSS), VBOX_WITH_AUDIO_OSS) \
+	$(if $(VBOX_WITH_AUDIO_ALSA), VBOX_WITH_AUDIO_ALSA) \
+ 	$(if $(VBOX_WITH_AUDIO_PULSE),VBOX_WITH_AUDIO_PULSE) \
+ 	$(if $(VBOX_WITH_SCSI), VBOX_WITH_SCSI) \
+ 	$(if $(VBOX_WITH_VBOXSDL), VBOX_WITH_VBOXSDL) \
+ 	$(if $(VBOX_WITH_VIDEOHWACCEL), VBOX_WITH_VIDEOHWACCEL) \
+ 	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO) \
+ 	$(if $(VBOX_WITH_USB_CARDREADER),VBOX_WITH_USB_CARDREADER) \
+ 	$(if $(VBOX_WITH_PCI_PASSTHROUGH),VBOX_WITH_PCI_PASSTHROUGH) \
+ 	$(if $(VBOX_WITH_VIDEOREC),VBOX_WITH_VIDEOREC) \
+	$(if $(VBOX_WITH_AUDIO_VIDEOREC),VBOX_WITH_AUDIO_VIDEOREC) \
+ 	$(if $(VBOX_WITH_NAT_SERVICE),VBOX_WITH_NAT_SERVICE) \
+ 	$(if $(VBOX_WITH_VMSVGA),VBOX_WITH_VMSVGA)
+
+
+ifdef VBOX_WITH_DOCS
+ PROGRAMS += BreadvmManageHelp
+endif
+BreadvmManageHelp_TEMPLATE   = VBoxAdvBldProg
+BreadvmManageHelp_DEFS      += \
+	VBOX_ONLY_DOCS \
+       $(VBOX_COMMON_VBOXMANAGE_DEFS)
+BreadvmManageHelp_SOURCES    = \
+	VBoxManage.cpp \
+	VBoxManageHelp.cpp \
+	$(if $(VBOX_WITH_GUEST_PROPS),VBoxManageGuestProp.cpp) \
+	$(if $(VBOX_WITH_GUEST_CONTROL),VBoxManageGuestCtrl.cpp)
+
+ifndef VBOX_ONLY_DOCS
+ PROGRAMS += BreadvmManage
+ BreadvmManage_TEMPLATE   = VBOXMAINCLIENTEXE
+ BreadvmManage_DEFS      += $(VBOX_COMMON_VBOXMANAGE_DEFS)
+ BreadvmManage_DEFS.win   = _WIN32_WINNT=0x0500
+ BreadvmManage_SOURCES    = \
+ 	VBoxManage.cpp \
+ 	VBoxInternalManage.cpp \
+ 	VBoxManageAppliance.cpp \
+ 	VBoxManageBandwidthControl.cpp \
+ 	VBoxManageControlVM.cpp \
+ 	VBoxManageDebugVM.cpp \
+ 	VBoxManageDHCPServer.cpp \
+ 	VBoxManageDisk.cpp \
+ 	$(if $(VBOX_WITH_GUEST_CONTROL),VBoxManageGuestCtrl.cpp) \
+ 	$(if $(VBOX_WITH_GUEST_CONTROL),VBoxManageGuestCtrlListener.cpp) \
+ 	$(if $(VBOX_WITH_GUEST_PROPS),VBoxManageGuestProp.cpp) \
+ 	VBoxManageHelp.cpp \
+	VBoxManageBuiltInHelp.cpp \
+ 	VBoxManageHostonly.cpp \
+ 	VBoxManageInfo.cpp \
+ 	VBoxManageList.cpp \
+ 	VBoxManageMetrics.cpp \
+ 	VBoxManageMisc.cpp \
+ 	VBoxManageModifyVM.cpp \
+ 	VBoxManageSnapshot.cpp \
+ 	VBoxManageStorageController.cpp \
+ 	VBoxManageUSB.cpp \
+ 	$(if $(VBOX_WITH_NAT_SERVICE),VBoxManageNATNetwork.cpp,) \
+ 	$(if $(VBOX_WITH_NAT_SERVICE),../../NetworkServices/NetLib/VBoxNetPortForwardString.cpp,)
+ BreadvmManage_SOURCES.win = \
+ 	BreadvmManage.rc
+ BreadvmManage_LIBS      += $(LIB_DDU)
+
+ # VBoxNetPortForwardString.h
+ VBoxManageNATNetwork.cpp_INCS += ../../NetworkServices/NetLib/
+
+endif # VBOX_ONLY_DOCS
+
+ifneq ($(KBUILD_TARGET),win)
+ # Workaround for buggy gcc-4.3 compilers, see
+ #
+ #   http://gcc.gnu.org/bugzilla/show_bug.cgi?id=36474
+ #
+ # Some later revisions of version 4.3.1 are known to work so we assume
+ # that version 4.3.2 or later has this bug definitely fixed.
+ BreadvmManage_CXXFLAGS.release += \
+	$(if $(VBOX_GCC_VERSION_CXX),$(if-expr $(VBOX_GCC_VERSION_CXX) < 40300 || $(VBOX_GCC_VERSION_CXX) > 40301,,--param max-fields-for-field-sensitive=0),)
+ BreadvmManageHelp_CXXFLAGS.release = $(BreadvmManage_CXXFLAGS.release)
+endif
+
+include $(FILE_KBUILD_SUB_FOOTER)
+

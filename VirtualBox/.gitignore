@@ -1,0 +1,5 @@
+/out/
+/AutoConfig.kmk
+/configure.log
+/env.bat
+*.pyc

@@ -1,0 +1,51 @@
+/* $Id: BreadvmManage.rc $ */
+/** @file
+ * VBoxManage - Resource file containing version info and icon.
+ */
+
+/*
+ * Copyright (C) 2015-2017 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+#include <windows.h>
+#include <VBox/version.h>
+
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+
+VS_VERSION_INFO VERSIONINFO
+  FILEVERSION     1.0,0
+  PRODUCTVERSION     1.0,0
+  FILEFLAGSMASK    VS_FFI_FILEFLAGSMASK
+  FILEFLAGS        VBOX_RC_FILE_FLAGS
+  FILEOS           VBOX_RC_FILE_OS
+  FILETYPE         VBOX_RC_TYPE_APP
+  FILESUBTYPE      VFT2_UNKNOWN
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904b0" // Lang=US English, CharSet=Unicode
+    BEGIN
+      VALUE "FileDescription",  "BreadvmBox Command Line Tool\0"
+      VALUE "InternalName",     "BreadvmManage\0"
+      VALUE "OriginalFilename", "BreadvmManage.exe\0"
+      VALUE "CompanyName",      VBOX_RC_COMPANY_NAME
+      VALUE "FileVersion",      "1.0\0"
+      VALUE "LegalCopyright",   VBOX_RC_LEGAL_COPYRIGHT
+      VALUE "ProductName",      "BreadvmManage\0"
+      VALUE "ProductVersion",   "2.0\0"
+      VBOX_RC_MORE_STRINGS
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END

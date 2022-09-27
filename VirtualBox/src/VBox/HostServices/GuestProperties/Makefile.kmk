@@ -1,0 +1,46 @@
+# $Id: Makefile.kmk $
+## @file
+# Sub-Makefile for the Shared Info Services Host Service.
+#
+
+#
+# Copyright (C) 2006-2017 Oracle Corporation
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+
+SUB_DEPTH = ../../../..
+include $(KBUILD_PATH)/subheader.kmk
+
+# Include sub-makefile(s).
+
+#
+# The shared folder service DLL.
+#
+DLLS += BreadvmGuestPropSvc
+BreadvmGuestPropSvc_TEMPLATE  = VBOXR3
+BreadvmGuestPropSvc_NAME.os2  = VBoxSIS
+BreadvmGuestPropSvc_DEFS      = VBOX_WITH_HGCM
+BreadvmGuestPropSvc_INCS      = $(PATH_ROOT)/src/VBox/Main/include
+BreadvmGuestPropSvc_INCS.win  = \
+	$(VBOX_PATH_SDK)
+
+BreadvmGuestPropSvc_SOURCES = \
+	service.cpp
+
+BreadvmGuestPropSvc_SOURCES.win = \
+	BreadvmGuestPropSvc.rc
+
+BreadvmGuestPropSvc_LIBS = \
+	$(LIB_VMM) \
+	$(LIB_RUNTIME) \
+	$(LIB_REM)
+
+include $(FILE_KBUILD_SUB_FOOTER)
+
