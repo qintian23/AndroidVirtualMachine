@@ -34,4 +34,13 @@ kmk
 
 编译结果在 source\VirtualBox\out 目录下.
 
-## 2 关于每一个库的功能
+## 2 关于每一文件夹的功能
+
+### 2.1 jom
+
+[cmake: 使用jom实现msvc工程并发编译提高速度(-j)](https://cloud.tencent.com/developer/article/1011659)
+
+msvc提供的nmake并没有并发编译功能（类似于gcc make的-j参数指定并发编译的任务数），而第三方工具[jom](https://wiki.qt.io/Jom)解决了这个问题，jom可以想gcc的make一样通过 -j 参数指定并发编译，让CPU全速运行，可以大大提高编译速度，节省大型项目的编译时间。
+
+cmake也支持jom编译，cmake有一个名为”NMake Makefiles JOM”的CMake Generator就是用来生成jom格式的Makefile。
+
