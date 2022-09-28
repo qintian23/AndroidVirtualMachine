@@ -33,3 +33,5 @@ env
 kmk
 
 编译结果在 source\VirtualBox\out 目录下.
+
+## 2 关于每一个库的功能
